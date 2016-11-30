@@ -52,7 +52,7 @@ public class Signup extends HttpServlet {
 		json.addProperty("name", username);
 		json.addProperty("pas", password);
 		
-		String postJson =json.toString().trim();
+		String postJson =json.toString();
 		System.out.println(postJson);
 
 		PrintWriter out = response.getWriter();
