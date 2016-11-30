@@ -176,13 +176,14 @@ String postJson =json.toString();
 ```
 
 #### 调用方法和解析数据
+首先要开启访问网络权限，然后开启线程，在线程中执行，get就是执行doGet,Post同理。
 其中data就是你要传给服务器的参数，url就是地址。
 ```java
 String url="http://192.168.31.215:8080/Talk/talk/sign_up";
 new Thread(new Runnable() {
             @Override
             public void run() {
-                JSONObject jsonObject=MyHttp.getJson("username=嗨&password=你好",url);
+                JSONObject jsonObject=MyHttp.getJson_Post("username=嗨&password=你好",url);
                 try {
                     String code=jsonObject.getString("code");
                     String name=jsonObject.getString("name");
