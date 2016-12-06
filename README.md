@@ -7,7 +7,7 @@
 自己写Android也已经两年了，平时和其他同学合作都是别人写后台，或者直接用第三方的Api，把数据存到别人服务器上面，自己也了解过后台就是自己从来没有去实现过，所以现在感觉没什么事情，就想要自己搞一下。
 之前考虑过用**Python**，但是还要去学习好久的基本语法，自己也是懒得去学了，还是来用**Java**好了。
 
-
+## 基本数据传输
 
 ### 环境配置
 环境配置什么的我就不想说了，很简单
@@ -199,3 +199,175 @@ new Thread(new Runnable() {
         }).start();
 ```
 这样就完成了基本的数据传输。
+
+
+## 文件上传
+
+### 服务器端
+使用Apache开发的文件上传处理库Commons FileUpload来进行文件的上传，这个库还可以，有很多优点，上传的文件可大可小。
+需要这俩jar包
+commons-fileupload.jar：
+> 下载地址：http://apache.fayea.com//commons/fileupload/binaries/commons-fileupload-1.3.2-bin.zip
+
+commons-io.jar
+> 下载地址：http://mirrors.hust.edu.cn/apache//commons/io/binaries/commons-io-2.5-bin.zip
+
+#### 新建servlet
+新建一个servlet，然后在web.xml中配置好
+```xml
+<servlet>
+    <servlet-name>upload</servlet-name>
+    <servlet-class>servlet.Upload</servlet-class>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>upload</servlet-name>
+    <url-pattern>/talk/setHeadImage</url-pattern>
+  </servlet-mapping>
+```
+#### 在doPost中完成文件的读取和保存
+```java
+System.out.println(name + "doPost+被访问");	
+		
+		request.setCharacterEncoding("UTF-8");
+		response.setCharacterEncoding("UTF-8");
+		
+		//获得磁盘文件条目工厂。  
+        DiskFileItemFactory factory = new DiskFileItemFactory();  
+        //获取文件上传需要保存的路径，upload文件夹需存在。  
+        String path ="/Users/Tyhj/softWare/upload";
+        //设置暂时存放文件的存储室，这个存储室可以和最终存储文件的文件夹不同。因为当文件很大的话会占用过多内存所以设置存储室。  
+        factory.setRepository(new File(path));  
+        //设置缓存的大小，当上传文件的容量超过缓存时，就放到暂时存储室。  
+        factory.setSizeThreshold(1024*1024);  
+        //上传处理工具类（高水平API上传处理？）  
+        ServletFileUpload upload = new ServletFileUpload(factory);  
+          
+        try{  
+            //调用 parseRequest（request）方法  获得上传文件 FileItem 的集合list 可实现多文件上传。  
+            List<FileItem> list = (List<FileItem>)upload.parseRequest(request);  
+            for(FileItem item:list){  
+                //获取表单属性名字。  
+                String name = item.getFieldName();  
+                //如果获取的表单信息是普通的文本信息。即通过页面表单形式传递来的字符串。  
+                if(item.isFormField()){  
+                    //获取用户具体输入的字符串，  
+                    String value = item.getString();  
+                    request.setAttribute(name, value);  
+                }  
+                //如果传入的是非简单字符串，而是图片，音频，视频等二进制文件。  
+                else{   
+                    //获取路径名  
+                    String value = item.getName();  
+                    //取到最后一个反斜杠。  
+                    int start = value.lastIndexOf("\\");  
+                    //截取上传文件的 字符串名字。+1是去掉反斜杠。  
+                    String filename = value.substring(start+1);  
+                    request.setAttribute(name, filename);  
+                      
+                    /*第三方提供的方法直接写到文件中。 
+                     * item.write(new File(path,filename));*/  
+                    //收到写到接收的文件中。  
+                    OutputStream out = new FileOutputStream(new File(path,filename));  
+                    InputStream in = item.getInputStream();  
+                      
+                    int length = 0;  
+                    byte[] buf = new byte[1024];  
+                    System.out.println("获取文件总量的容量:"+ item.getSize());  
+                      
+                    while((length = in.read(buf))!=-1){  
+                        out.write(buf,0,length);  
+                    }  
+                    in.close();  
+                    out.close();  
+                    
+                }  
+            }  
+        }catch(Exception e){  
+            e.printStackTrace();  
+        } 
+        
+        JsonObject json = new JsonObject();
+		json.addProperty("code", "1");
+		json.addProperty("name", "上传成功");
+		
+		String postJson =json.toString();
+		System.out.println(postJson);
+
+		PrintWriter out = response.getWriter();
+		out.write(postJson);
+		out.close();
+```
+
+### Android端
+Android端也是比较简单，新建一个upLoad方法来执行文件上传的操作
+```java
+//上传文件
+    public static String upLoad(String url, File file) {
+        String BOUNDARY = UUID.randomUUID().toString(); // 边界标识 随机生成
+        String PREFIX = "--", LINE_END = "\r\n";
+        String CONTENT_TYPE = "multipart/form-data"; // 内容类型
+        HttpURLConnection conn = null;
+        java.net.URL mURL = null;
+            try {
+                mURL = new URL(url);
+                conn = (HttpURLConnection) mURL.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setReadTimeout(5000);
+                conn.setConnectTimeout(10000);
+                conn.setDoInput(true); // 允许输入流
+                conn.setDoOutput(true); // 允许输出流
+                conn.setUseCaches(false); // 不允许使用缓存
+                conn.setRequestProperty("connection", "keep-alive");
+                conn.setRequestProperty("Content-Type", CONTENT_TYPE + ";boundary="+ BOUNDARY);
+                OutputStream out = conn.getOutputStream();
+
+
+                DataOutputStream dos = new DataOutputStream(out);
+                StringBuffer sb = new StringBuffer();
+                sb.append(PREFIX);
+                sb.append(BOUNDARY);
+                sb.append(LINE_END);
+
+
+                /**
+                 * 这里重点注意： name里面的值为服务器端需要key 只有这个key 才可以得到对应的文件
+                 * filename是文件的名字，包含后缀名
+                 */
+
+                sb.append("Content-Disposition: form-data; name=\"file\"; filename=\""
+                        + file.getName() + "\"" + LINE_END);
+
+                sb.append("Content-Type: application/octet-stream; charset="
+                        + CHARSET + LINE_END);
+
+                sb.append(LINE_END);
+                dos.write(sb.toString().getBytes());
+                InputStream is = new FileInputStream(file);
+                byte[] bytes = new byte[1024];
+                int len = 0;
+                while ((len = is.read(bytes)) != -1) {
+                    dos.write(bytes, 0, len);
+                }
+                is.close();
+                dos.write(LINE_END.getBytes());
+                byte[] end_data = (PREFIX + BOUNDARY + PREFIX + LINE_END).getBytes();
+                dos.write(end_data);
+                dos.flush();
+
+
+                int responseCode = conn.getResponseCode();// 调用此方法就不必再使用conn.connect()方
+                if (responseCode == 200) {
+                    InputStream input = conn.getInputStream();
+                    String state = For2mat.getInstance().inputStream2String(input);
+                    //Log.e("Tag",state);
+                    return state;
+                }
+                return null;
+            } catch (Exception e) {
+                e.printStackTrace();
+                return null;
+            }
+    }
+```
+之前使用过把文件转化成字符串来上传的方法，但是上传的文件大小有限制，还容易出错，所以这个方法还可以，我也是网上找的代码，没有深入学习过，我测试上传了一个MV,是可以用的，当然我的代码有很多需要优化的地方，服务器返回值应该在文件保存之前返回，不然文件太大的话，会造成请求超时。
+> 参考文章：http://blog.csdn.net/crazy__chen/article/details/41958701
